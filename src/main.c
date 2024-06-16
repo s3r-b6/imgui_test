@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -8,10 +9,13 @@
 #include "memory.h"
 #include "types.h"
 
-#define MAX_PARTICLES 8192 * 2
-#define SPACE_PARTITIONS 16
+#define MAX_PARTICLES 20480
+#define SPACE_PARTITIONS 128
+#define NUM_THREADS 8
 
 #define MAX_PARTITION_PARTICLES (MAX_PARTICLES / SPACE_PARTITIONS)
+#define POINTS_ADDED 2048
+
 #define BASE_SIZE 2
 #define MAX_SPEED 100
 #define TARGET_FPS 60
@@ -35,6 +39,13 @@ typedef struct {
     Point *points[MAX_PARTICLES];
 } Points;
 
+typedef struct {
+    int start_row;
+    int end_row;
+    int start_col;
+    int end_col;
+} ThreadData;
+
 static Points points;
 
 static Partition parts[SPACE_PARTITIONS][SPACE_PARTITIONS] = {0};
@@ -43,6 +54,8 @@ static float h;
 static int PARTITION_SIZE;
 
 static BumpAllocator *tempStorage;
+
+static float dt;
 
 Vector2 getPartitionIndex(Vector2 pos, float half_dim) {
     int x = (int)((pos.x + half_dim) / PARTITION_SIZE);
@@ -66,7 +79,8 @@ void updatePartitions() {
         Vector2 idx = getPartitionIndex(p->pos, p->radius);
         int partX = (int)idx.x, partY = (int)idx.y;
 
-        parts[partX][partY].points[parts[partX][partY].amount++] = p;
+        Partition *part = &parts[partX][partY];
+        part->points[part->amount++] = p;
     }
 }
 
@@ -83,7 +97,7 @@ void generatePoints() {
         return;
     }
 
-    for (int i = 0; i < MAX_PARTITION_PARTICLES; i++) {
+    for (int i = 0; i < POINTS_ADDED; i++) {
         u8 radius = (BASE_SIZE + GetRandomValue(1, 3));
 
         Vector2 spawn = {GetRandomValue(-w / 2 + radius, w / 2 - radius),
@@ -98,10 +112,9 @@ void generatePoints() {
 
         points.points[points.amount++] = p;
     }
-    updatePartitions();
 }
 
-void updateParticlePosition(Point *p, float dt) {
+void updateParticlePosition(Point *p) {
     p->pos.x += p->speed.x * dt;
     p->pos.y += p->speed.y * dt;
 
@@ -122,8 +135,6 @@ bool checkCollision(Vector2 pos1, float radius1, Vector2 pos2, float radius2) {
 }
 
 void resolveCollision(Point *p1, Point *p2) {
-    if (!checkCollision(p1->pos, p1->radius, p2->pos, p2->radius)) { return; }
-
     Vector2 normal = Vector2Subtract(p1->pos, p2->pos);
     float dist = Vector2Length(normal);
 
@@ -141,47 +152,93 @@ void resolveCollision(Point *p1, Point *p2) {
     p2->speed = Vector2Add(p2->speed, impulseVector);
 }
 
-void updateParticles(float dt) {
-    // Check collisions
-    // instead of checking every single point against every other point
-    //
-    // we are checking every single point in a partition against all other
-    // points in that partition.
-    for (int i = 0; i < SPACE_PARTITIONS; i++) {
-        for (int j = 0; j < SPACE_PARTITIONS; j++) {
+void *resolveCollisionsTask(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    for (int i = data->start_row; i < data->end_row; i++) {
+        for (int j = data->start_col; j < data->end_col; j++) {
             Partition *part = &parts[i][j];
             for (u32 k = 0; k < part->amount; k++) {
                 for (u32 l = k + 1; l < part->amount; l++) {
                     Point *this = part->points[k];
-
-                    if (!this) break;
                     Point *other = part->points[l];
-                    if (!other) continue;
+
+                    if (!checkCollision(this->pos, this->radius, other->pos,
+                                        other->radius))
+                        continue;
+
                     resolveCollision(this, other);
                 }
             }
         }
     }
+    pthread_exit(NULL);
+}
 
-    // Movement
-    for (int i = 0; i < points.amount; i++) {
+void *updatePositionsTask(void *arg) {
+    ThreadData *data = (ThreadData *)arg;
+    for (int i = data->start_row; i < data->end_row; i++) {
         Point *p = points.points[i];
-        if (!p) break;
-        updateParticlePosition(p, dt);
+        updateParticlePosition(p);
+    }
+    pthread_exit(NULL);
+}
+
+void updateParticlesThreaded() {
+    pthread_t threads[NUM_THREADS];
+    ThreadData thread_data[NUM_THREADS];
+    int rows_per_thread = SPACE_PARTITIONS / NUM_THREADS;
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_data[i].start_row = i * rows_per_thread;
+        thread_data[i].end_row = (i == NUM_THREADS - 1)
+                                     ? SPACE_PARTITIONS
+                                     : (i + 1) * rows_per_thread;
+        thread_data[i].start_col = 0;
+        thread_data[i].end_col = SPACE_PARTITIONS;
+
+        if (pthread_create(&threads[i], NULL, resolveCollisionsTask,
+                           (void *)&thread_data[i])) {
+            fprintf(stderr, "Error creating thread\n");
+            exit(1);
+        }
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_join(threads[i], NULL)) {
+            fprintf(stderr, "Error joining thread\n");
+            exit(2);
+        }
+    }
+
+    int points_per_thread = points.amount / NUM_THREADS;
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_data[i].start_row = i * points_per_thread;
+        thread_data[i].end_row = (i + 1) * points_per_thread;
+        if (pthread_create(&threads[i], NULL, updatePositionsTask,
+                           (void *)&thread_data[i])) {
+            fprintf(stderr, "Error creating thread\n");
+            exit(1);
+        }
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_join(threads[i], NULL)) {
+            fprintf(stderr, "Error joining thread\n");
+            exit(2);
+        }
     }
 
     updatePartitions();
 }
 
 int main(void) {
-    printf("AAAA\n");
     tempStorage = NewBumpAlloc(MB(5));
     if (!tempStorage) {
         printf("Failed to init bump allocator\n");
         crash();
     }
 
-    InitWindow(800, 450, "RayLib playground");
+    InitWindow(1280, 720, "RayLib playground");
     SetTargetFPS(TARGET_FPS);
 
     w = GetScreenWidth(), h = GetScreenHeight();
@@ -199,9 +256,9 @@ int main(void) {
         Vector2 mousePos = GetMousePosition();
         Vector2 windowPos = {mousePos.x - center.x, mousePos.y - center.y};
 
-        float dt = GetFrameTime();
+        dt = GetFrameTime();
 
-        updateParticles(dt);
+        updateParticlesThreaded();
 
         BeginDrawing();
         BeginMode2D(camera);
