@@ -8,31 +8,31 @@
 #include "memory.h"
 #include "types.h"
 
-#define MAX_PARTICLES 8192
-#define MAX_PARTITION_PARTICLES 256
-#define PARTICLE_BASE_SIZE 5
-#define PARTICLE_SPEED 100
-#define TARGET_FPS 60
-
+#define MAX_PARTICLES 8192 * 2
 #define SPACE_PARTITIONS 16
 
+#define MAX_PARTITION_PARTICLES (MAX_PARTICLES / SPACE_PARTITIONS)
+#define BASE_SIZE 2
+#define MAX_SPEED 100
+#define TARGET_FPS 60
+
 typedef struct {
+    u8 radius;
     Vector2 pos;
     Vector2 speed;
-    u8 radius;
 } Point;
 
 // Group of Point* for world-partition
 // based collision detection
 typedef struct {
-    Point *points[MAX_PARTITION_PARTICLES];
     u32 amount;
+    Point *points[MAX_PARTITION_PARTICLES];
 } Partition;
 
 // Group of Point* in the world
 typedef struct {
-    Point *points[MAX_PARTICLES];
     u32 amount;
+    Point *points[MAX_PARTICLES];
 } Points;
 
 static Points points;
@@ -76,24 +76,25 @@ void clearPoints() {
     memset(points.points, 0, MAX_PARTITION_PARTICLES);
     memset(parts, 0, SPACE_PARTITIONS * SPACE_PARTITIONS * sizeof(Partition));
 }
+
 void generatePoints() {
     if (points.amount >= MAX_PARTICLES) {
-        printf("Too many particles");
+        printf("Too many particles\n");
         return;
     }
 
     for (int i = 0; i < MAX_PARTITION_PARTICLES; i++) {
-        Vector2 spawn = {GetRandomValue(-w / 2 + PARTICLE_BASE_SIZE,
-                                        w / 2 - PARTICLE_BASE_SIZE),
-                         GetRandomValue(-h / 2 + PARTICLE_BASE_SIZE,
-                                        h / 2 - PARTICLE_BASE_SIZE)};
-        Vector2 speed = {GetRandomValue(-PARTICLE_SPEED, PARTICLE_SPEED),
-                         GetRandomValue(-PARTICLE_SPEED, PARTICLE_SPEED)};
+        u8 radius = (BASE_SIZE + GetRandomValue(1, 3));
+
+        Vector2 spawn = {GetRandomValue(-w / 2 + radius, w / 2 - radius),
+                         GetRandomValue(-h / 2 + radius, h / 2 - radius)};
+        Vector2 speed = {GetRandomValue(-MAX_SPEED, MAX_SPEED),
+                         GetRandomValue(-MAX_SPEED, MAX_SPEED)};
 
         Point *p = (Point *)alloc(tempStorage, sizeof(Point));
         p->speed = speed;
         p->pos = spawn;
-        p->radius = PARTICLE_BASE_SIZE;
+        p->radius = radius;
 
         points.points[points.amount++] = p;
     }
@@ -104,12 +105,10 @@ void updateParticlePosition(Point *p, float dt) {
     p->pos.x += p->speed.x * dt;
     p->pos.y += p->speed.y * dt;
 
-    if (p->pos.x + PARTICLE_BASE_SIZE >= w / 2 ||
-        p->pos.x - PARTICLE_BASE_SIZE <= -w / 2) {
+    if (p->pos.x + BASE_SIZE >= w / 2 || p->pos.x - BASE_SIZE <= -w / 2) {
         p->speed.x = -p->speed.x;
     }
-    if (p->pos.y + PARTICLE_BASE_SIZE >= h / 2 ||
-        p->pos.y - PARTICLE_BASE_SIZE <= -h / 2) {
+    if (p->pos.y + BASE_SIZE >= h / 2 || p->pos.y - BASE_SIZE <= -h / 2) {
         p->speed.y = -p->speed.y;
     }
 }
@@ -175,8 +174,8 @@ void updateParticles(float dt) {
 }
 
 int main(void) {
+    printf("AAAA\n");
     tempStorage = NewBumpAlloc(MB(5));
-
     if (!tempStorage) {
         printf("Failed to init bump allocator\n");
         crash();
@@ -210,7 +209,8 @@ int main(void) {
             ClearBackground(RAYWHITE);
 
             for (int i = 0; i < points.amount; i++) {
-                DrawCircleV(points.points[i]->pos, PARTICLE_BASE_SIZE, RED);
+                Point *p = points.points[i];
+                DrawCircleV(p->pos, p->radius, RED);
             }
 
             snprintf(dtString, sizeof(dtString), "dt: %f", dt);
