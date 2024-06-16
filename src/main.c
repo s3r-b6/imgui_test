@@ -1,9 +1,8 @@
-#include <pthread.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "raylib.h"
-#include "raymath.h"
 
 #include "gui.h"
 #include "memory.h"
@@ -16,53 +15,41 @@
 #define MAX_PARTITION_PARTICLES (MAX_PARTICLES / SPACE_PARTITIONS)
 #define POINTS_ADDED 2048
 
-#define BASE_SIZE 2
+#define BASE_SIZE 0.5
 #define MAX_SPEED 100
 #define TARGET_FPS 60
 
-typedef struct {
-    u8 radius;
-    Vector2 pos;
-    Vector2 speed;
-} Point;
+#define MASS 1.0
+#define RESTITUTION 0.9
 
-// Group of Point* for world-partition
-// based collision detection
+// Partition based collision detection
 typedef struct {
     u32 amount;
-    Point *points[MAX_PARTITION_PARTICLES];
+    u32 points[MAX_PARTITION_PARTICLES];
 } Partition;
 
-// Group of Point* in the world
 typedef struct {
     u32 amount;
-    Point *points[MAX_PARTICLES];
+    float *speeds;
+    float *positions;
+    float *radiuses;
 } Points;
-
-typedef struct {
-    int start_row;
-    int end_row;
-    int start_col;
-    int end_col;
-} ThreadData;
 
 static Points points;
 
 static Partition parts[SPACE_PARTITIONS][SPACE_PARTITIONS] = {0};
-static float w;
-static float h;
 static int PARTITION_SIZE;
 
 static BumpAllocator *tempStorage;
 
+static float w, h;
 static float dt;
 
-Vector2 getPartitionIndex(Vector2 pos, float half_dim) {
-    int x = (int)((pos.x + half_dim) / PARTITION_SIZE);
-    int y = (int)((pos.y + half_dim) / PARTITION_SIZE);
+Vector2 getPartitionIndex(float posX, float posY, int radius) {
+    int x = (int)((posX + radius) / PARTITION_SIZE);
+    int y = (int)((posY + radius) / PARTITION_SIZE);
 
     Vector2 v = {abs(x), abs(y)};
-
     return v;
 }
 
@@ -74,20 +61,21 @@ void updatePartitions() {
     }
 
     for (int i = 0; i < points.amount; i++) {
-        Point *p = points.points[i];
-
-        Vector2 idx = getPartitionIndex(p->pos, p->radius);
+        Vector2 idx = getPartitionIndex(points.positions[(i * 2)],
+                                        points.positions[(i * 2) + 1],
+                                        points.radiuses[i]);
         int partX = (int)idx.x, partY = (int)idx.y;
-
         Partition *part = &parts[partX][partY];
-        part->points[part->amount++] = p;
+        part->points[part->amount++] = i;
     }
 }
 
 void clearPoints() {
     freeBumpAllocator(tempStorage);
     points.amount = 0;
-    memset(points.points, 0, MAX_PARTITION_PARTICLES);
+    memset(points.positions, 0, points.amount * 2);
+    memset(points.speeds, 0, points.amount * 2);
+    memset(points.radiuses, 0, points.amount);
     memset(parts, 0, SPACE_PARTITIONS * SPACE_PARTITIONS * sizeof(Partition));
 }
 
@@ -97,137 +85,97 @@ void generatePoints() {
         return;
     }
 
-    for (int i = 0; i < POINTS_ADDED; i++) {
-        u8 radius = (BASE_SIZE + GetRandomValue(1, 3));
+    int start = points.amount;
+    int end = points.amount + POINTS_ADDED;
+    for (int i = start; i < end; i++) {
+        u8 radius = (BASE_SIZE + GetRandomValue(4, 6));
 
         Vector2 spawn = {GetRandomValue(-w / 2 + radius, w / 2 - radius),
                          GetRandomValue(-h / 2 + radius, h / 2 - radius)};
         Vector2 speed = {GetRandomValue(-MAX_SPEED, MAX_SPEED),
                          GetRandomValue(-MAX_SPEED, MAX_SPEED)};
 
-        Point *p = (Point *)alloc(tempStorage, sizeof(Point));
-        p->speed = speed;
-        p->pos = spawn;
-        p->radius = radius;
+        points.positions[(i * 2)] = spawn.x;
+        points.positions[(i * 2) + 1] = spawn.y;
+        points.speeds[(i * 2)] = speed.x;
+        points.speeds[(i * 2) + 1] = speed.y;
+        points.radiuses[(i * 2) + 1] = radius;
 
-        points.points[points.amount++] = p;
+        points.amount++;
     }
 }
 
-void updateParticlePosition(Point *p) {
-    p->pos.x += p->speed.x * dt;
-    p->pos.y += p->speed.y * dt;
+void updatePositions() {
+    for (int i = 0; i < points.amount; i++) {
+        points.positions[(i * 2)] += points.speeds[(i * 2)] * dt;
+        points.positions[(i * 2) + 1] += points.speeds[(i * 2) + 1] * dt;
 
-    if (p->pos.x + BASE_SIZE >= w / 2 || p->pos.x - BASE_SIZE <= -w / 2) {
-        p->speed.x = -p->speed.x;
-    }
-    if (p->pos.y + BASE_SIZE >= h / 2 || p->pos.y - BASE_SIZE <= -h / 2) {
-        p->speed.y = -p->speed.y;
+        if (points.positions[(i * 2)] + BASE_SIZE >= w / 2 ||
+            points.positions[(i * 2)] - BASE_SIZE <= -w / 2) {
+            points.speeds[(i * 2)] = -points.speeds[(i * 2)];
+        }
+        if (points.positions[(i * 2) + 1] + BASE_SIZE >= h / 2 ||
+            points.positions[(i * 2) + 1] - BASE_SIZE <= -h / 2) {
+            points.speeds[(i * 2) + 1] = -points.speeds[(i * 2) + 1];
+        }
     }
 }
 
-bool checkCollision(Vector2 pos1, float radius1, Vector2 pos2, float radius2) {
-    float dx = pos2.x - pos1.x;
-    float dy = pos2.y - pos1.y;
+bool checkCollisions(u32 p1, u32 p2) {
+    float dx = points.positions[(p1 * 2)] - points.positions[(p2 * 2)];
+    float dy = points.positions[(p1 * 2) + 1] - points.positions[(p2 * 2) + 1];
     float distanceSquared = dx * dx + dy * dy;
-    float sum = radius1 + radius2;
+    float sum = points.radiuses[p1] + points.radiuses[p2];
     return distanceSquared <= sum * sum;
 }
 
-void resolveCollision(Point *p1, Point *p2) {
-    Vector2 normal = Vector2Subtract(p1->pos, p2->pos);
-    float dist = Vector2Length(normal);
+void resolveCollision(int p1, int p2) {
+    if (!checkCollisions(p1, p2)) { return; }
 
-    normal = Vector2Normalize(normal);
+    float dx = points.positions[p1 * 2] - points.positions[p2 * 2];
+    float dy = points.positions[p1 * 2 + 1] - points.positions[p2 * 2 + 1];
+    float distanceSquared = dx * dx + dy * dy;
+    float sum = points.radiuses[p1] + points.radiuses[p2];
 
-    Vector2 relativeVelocity = Vector2Subtract(p1->speed, p2->speed);
-    float speed = Vector2DotProduct(relativeVelocity, normal);
+    if (distanceSquared > sum * sum) return;
 
-    if (speed > 0) return;
+    float nx = dx / sqrtf(distanceSquared);
+    float ny = dy / sqrtf(distanceSquared);
 
-    float impulse = 2 * speed / (2);
-    Vector2 impulseVector = Vector2Scale(normal, impulse);
+    float dvx = points.speeds[p1 * 2] - points.speeds[p2 * 2];
+    float dvy = points.speeds[p1 * 2 + 1] - points.speeds[p2 * 2 + 1];
 
-    p1->speed = Vector2Subtract(p1->speed, impulseVector);
-    p2->speed = Vector2Add(p2->speed, impulseVector);
+    float dotProduct = dvx * nx + dvy * ny;
+
+    if (dotProduct > 0) return;
+
+    float impulseScalar =
+        (-(1 + RESTITUTION) * dotProduct) / (1 + (1 / MASS) + (1 / MASS));
+
+    points.speeds[p1 * 2] += impulseScalar * (nx / MASS);
+    points.speeds[p1 * 2 + 1] += impulseScalar * (ny / MASS);
+    points.speeds[p2 * 2] -= impulseScalar * (nx / MASS);
+    points.speeds[p2 * 2 + 1] -= impulseScalar * (ny / MASS);
 }
 
-void *resolveCollisionsTask(void *arg) {
-    ThreadData *data = (ThreadData *)arg;
-    for (int i = data->start_row; i < data->end_row; i++) {
-        for (int j = data->start_col; j < data->end_col; j++) {
+void updateParticles() {
+    // Check collisions
+    // instead of checking every single point against every other point
+    //
+    // we are checking every single point in a partition against all other
+    // points in that partition.
+    for (int i = 0; i < SPACE_PARTITIONS; i++) {
+        for (int j = 0; j < SPACE_PARTITIONS; j++) {
             Partition *part = &parts[i][j];
             for (u32 k = 0; k < part->amount; k++) {
                 for (u32 l = k + 1; l < part->amount; l++) {
-                    Point *this = part->points[k];
-                    Point *other = part->points[l];
-
-                    if (!checkCollision(this->pos, this->radius, other->pos,
-                                        other->radius))
-                        continue;
-
-                    resolveCollision(this, other);
+                    resolveCollision(k, l);
                 }
             }
         }
     }
-    pthread_exit(NULL);
-}
 
-void *updatePositionsTask(void *arg) {
-    ThreadData *data = (ThreadData *)arg;
-    for (int i = data->start_row; i < data->end_row; i++) {
-        Point *p = points.points[i];
-        updateParticlePosition(p);
-    }
-    pthread_exit(NULL);
-}
-
-void updateParticlesThreaded() {
-    pthread_t threads[NUM_THREADS];
-    ThreadData thread_data[NUM_THREADS];
-    int rows_per_thread = SPACE_PARTITIONS / NUM_THREADS;
-
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_data[i].start_row = i * rows_per_thread;
-        thread_data[i].end_row = (i == NUM_THREADS - 1)
-                                     ? SPACE_PARTITIONS
-                                     : (i + 1) * rows_per_thread;
-        thread_data[i].start_col = 0;
-        thread_data[i].end_col = SPACE_PARTITIONS;
-
-        if (pthread_create(&threads[i], NULL, resolveCollisionsTask,
-                           (void *)&thread_data[i])) {
-            fprintf(stderr, "Error creating thread\n");
-            exit(1);
-        }
-    }
-
-    for (int i = 0; i < NUM_THREADS; i++) {
-        if (pthread_join(threads[i], NULL)) {
-            fprintf(stderr, "Error joining thread\n");
-            exit(2);
-        }
-    }
-
-    int points_per_thread = points.amount / NUM_THREADS;
-    for (int i = 0; i < NUM_THREADS; i++) {
-        thread_data[i].start_row = i * points_per_thread;
-        thread_data[i].end_row = (i + 1) * points_per_thread;
-        if (pthread_create(&threads[i], NULL, updatePositionsTask,
-                           (void *)&thread_data[i])) {
-            fprintf(stderr, "Error creating thread\n");
-            exit(1);
-        }
-    }
-
-    for (int i = 0; i < NUM_THREADS; i++) {
-        if (pthread_join(threads[i], NULL)) {
-            fprintf(stderr, "Error joining thread\n");
-            exit(2);
-        }
-    }
-
+    updatePositions();
     updatePartitions();
 }
 
@@ -237,6 +185,12 @@ int main(void) {
         printf("Failed to init bump allocator\n");
         crash();
     }
+
+    points.speeds =
+        (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES * 2);
+    points.positions =
+        (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES * 2);
+    points.radiuses = (float *)alloc(tempStorage, sizeof(float));
 
     InitWindow(1280, 720, "RayLib playground");
     SetTargetFPS(TARGET_FPS);
@@ -258,7 +212,7 @@ int main(void) {
 
         dt = GetFrameTime();
 
-        updateParticlesThreaded();
+        updateParticles();
 
         BeginDrawing();
         BeginMode2D(camera);
@@ -266,8 +220,11 @@ int main(void) {
             ClearBackground(RAYWHITE);
 
             for (int i = 0; i < points.amount; i++) {
-                Point *p = points.points[i];
-                DrawCircleV(p->pos, p->radius, RED);
+                Vector2 pos = {
+                    points.positions[i * 2],
+                    points.positions[i * 2 + 1],
+                };
+                DrawCircleV(pos, points.radiuses[i], RED);
             }
 
             snprintf(dtString, sizeof(dtString), "dt: %f", dt);
