@@ -86,12 +86,14 @@ void updatePositions() {
 bool outOfBounds(u32 p) {
     float posX = pts.positionsX[p], posY = pts.positionsY[p];
     float speedX = pts.speedsX[p], speedY = pts.speedsY[p];
-    float r = pts.radiuses[p];
+    float radius = pts.radiuses[p];
 
-    bool oobX = (posX + r >= w / 2 && speedX > 0) || (posX - r <= -w / 2 && speedX < 0);
+    float minX = -worldSize.x / 2 + radius, maxX = worldSize.x / 2 - radius;
+    bool oobX = (posX + radius >= maxX && speedX > 0) || (posX - radius <= minX && speedX < 0);
     if (oobX) return true;
 
-    bool oobY = (posY + r >= h / 2 && speedY > 0) || (posY - r <= -h / 2 && speedY < 0);
+    float minY = -worldSize.y / 2 + radius, maxY = worldSize.y / 2 - radius;
+    bool oobY = (posY + radius >= maxY && speedY > 0) || (posY - radius <= minY && speedY < 0);
     return oobY;
 }
 
@@ -104,8 +106,6 @@ bool checkCollisions(u32 p1, u32 p2) {
 }
 
 void resolveCollision(int p1, int p2) {
-    if (!checkCollisions(p1, p2)) { return; }
-
     float dx = pts.positionsX[p1] - pts.positionsX[p2];
     float dy = pts.positionsY[p1] - pts.positionsY[p2];
     float distanceSquared = dx * dx + dy * dy;
@@ -150,7 +150,7 @@ void solveCollisions() {
             }
             for (u32 l = k + 1; l < part->amount; l++) {
                 u32 other = part->points[l];
-                resolveCollision(this, other);
+                if (checkCollisions(this, other)) { resolveCollision(this, other); }
             }
         }
     }

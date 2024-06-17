@@ -76,10 +76,9 @@ int main(void) {
     SetTargetFPS(TARGET_FPS);
 
     w = GetScreenWidth(), h = GetScreenHeight();
-    PARTITION_SIZE = w / SPACE_PARTITIONS;
+    PARTITION_SIZE = worldSize.x / SPACE_PARTITIONS;
 
     Vector2 bSize = {100, 40};
-
     Vector2 center = {w / 2, h / 2};
     Camera2D camera = {.offset = center, .zoom = 1};
 
@@ -95,14 +94,16 @@ int main(void) {
         Vector2 mousePos = GetMousePosition();
         Vector2 windowPos = {mousePos.x - center.x, mousePos.y - center.y};
 
+        camera.zoom += GetMouseWheelMove() * 0.05f;
+
         dt = GetFrameTime();
 
         updateParticles();
 
         BeginDrawing();
+        ClearBackground(RAYWHITE);
         BeginMode2D(camera);
-        {
-            ClearBackground(RAYWHITE);
+        { // WORLD_PASS
 
             for (int i = 0; i < pts.amount; i++) {
                 float posX = pts.positionsX[i];
@@ -122,22 +123,29 @@ int main(void) {
 
                 DrawTexturePro(circleTex, src, dest, origin, 0, colors[pts.colors[i]]);
             }
+        }
+        EndMode2D();
 
+        { // UI pass
             snprintf(dtString, sizeof(dtString), "dt: %f", dt);
-            DrawText(dtString, w / 2 - 11 * sizeof(dtString), -h / 2 + 14, 14, BLACK);
 
-            Vector2 b1Pos = {(w / 2) - bSize.x, (h / 2) - bSize.y};
-            Vector2 b2Pos = {(w / 2) - bSize.x * 2, (h / 2) - bSize.y};
-            if (drawButton("Generate new points", windowPos, b1Pos, bSize, 14)) {
+            Vector2 textSize = MeasureTextEx(GetFontDefault(), dtString, 14, 1);
+            int textPosX = w - textSize.x - 10, textPosY = 10;
+
+            DrawText(dtString, textPosX, textPosY, 14, BLACK);
+
+            Vector2 b1Pos = {w - bSize.x, h - bSize.y};
+            Vector2 b2Pos = {w - bSize.x * 2, h - bSize.y};
+            if (drawButton("Generate new points", mousePos, b1Pos, bSize, 14)) {
                 generatePoints();
                 printf("Total points: %d\n", pts.amount);
             }
-            if (drawButton("Delete points", windowPos, b2Pos, bSize, 14)) {
+            if (drawButton("Delete points", mousePos, b2Pos, bSize, 14)) {
                 printf("Deleting %d points\n", pts.amount);
                 clearPoints();
             }
         }
-        EndMode2D();
+
         EndDrawing();
     }
 

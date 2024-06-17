@@ -12,16 +12,16 @@
 #define i16 int16_t
 #define i8 int8_t
 
-#define MAX_PARTICLES 20480 * 3
+#define MAX_PARTICLES 20480 * 4
 #define NUM_THREADS 8
 
-#define POINTS_ADDED 2048 * 3
+#define POINTS_ADDED 2048 * 4
 
 #define BASE_SIZE 0.2
 #define MAX_SPEED 100
 #define TARGET_FPS 60
 
-#define SPACE_PARTITIONS 256
+#define SPACE_PARTITIONS 128
 #define MAX_PARTITION_PARTICLES (MAX_PARTICLES / SPACE_PARTITIONS)
 
 // Partition based collision detection
