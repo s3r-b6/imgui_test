@@ -85,6 +85,11 @@ int main(void) {
 
     generatePoints();
 
+    Image circleImg = LoadImage("assets/white-circle-no-outline.png");
+    Texture2D circleTex = LoadTextureFromImage(circleImg);
+    SetTextureFilter(circleTex, TEXTURE_FILTER_BILINEAR);
+    UnloadImage(circleImg);
+
     char dtString[14];
     while (!WindowShouldClose()) {
         Vector2 mousePos = GetMousePosition();
@@ -100,9 +105,22 @@ int main(void) {
             ClearBackground(RAYWHITE);
 
             for (int i = 0; i < pts.amount; i++) {
-                Vector2 pos = {pts.positionsX[i], pts.positionsY[i]};
+                float posX = pts.positionsX[i];
+                float posY = pts.positionsY[i];
+                float radius = pts.radiuses[i];
 
-                DrawCircleV(pos, pts.radiuses[i], colors[pts.colors[i]]);
+                Rectangle dest = {
+                    posX - radius,
+                    posY - radius,
+                    radius * 2,
+                    radius * 2,
+                };
+
+                Vector2 origin = {0, 0};
+
+                Rectangle src = {0, 0, circleTex.width, circleTex.height};
+
+                DrawTexturePro(circleTex, src, dest, origin, 0, colors[pts.colors[i]]);
             }
 
             snprintf(dtString, sizeof(dtString), "dt: %f", dt);
