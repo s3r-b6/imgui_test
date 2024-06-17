@@ -1,6 +1,7 @@
 #include <immintrin.h>
 
 #include <math.h>
+#include <raylib.h>
 #include <stdlib.h>
 
 #include "./include/globals.h"
@@ -134,7 +135,23 @@ void solveCollisions() {
 }
 
 void updateParticles() {
+    double start = GetTime();
     updatePartitions();
+    double endParts = GetTime();
     solveCollisions();
+    double endColls = GetTime();
     updatePositions();
+    double end = GetTime();
+
+    double totalMS = (end - start) * 1000;
+    double totalParts = (endParts - start) * 1000;
+    double totalColls = (endColls - endParts) * 1000;
+    double totalPos = (end - endColls) * 1000;
+
+    printf("Updated %hu particles in: \n"
+           " TOTAL: %.2fms\n"
+           " - Partitions: %.2fms\n"
+           " - Collisions: %.2fms\n"
+           " - Positions: %.2fms\n",
+           pts.amount, totalMS, totalParts, totalColls, totalPos);
 }

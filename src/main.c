@@ -38,7 +38,7 @@ void generatePoints() {
 
     const int end = pts.amount + POINTS_ADDED;
     for (int i = pts.amount; i < end; ++i) {
-        u8 r = BASE_SIZE + GetRandomValue(4, 6);
+        u8 r = BASE_SIZE + GetRandomValue(3, 4);
 
         pts.positionsX[i] = (float)GetRandomValue(-w / 2 + r, w / 2 - r);
         pts.positionsY[i] = (float)GetRandomValue(-h / 2 + r, h / 2 - r);
@@ -111,8 +111,8 @@ int main(void) {
             Vector2 b1Pos = {(w / 2) - bSize.x, (h / 2) - bSize.y};
             Vector2 b2Pos = {(w / 2) - bSize.x * 2, (h / 2) - bSize.y};
             if (drawButton("Generate new points", windowPos, b1Pos, bSize, 14)) {
-                printf("Total points: %d\n", pts.amount);
                 generatePoints();
+                printf("Total points: %d\n", pts.amount);
             }
             if (drawButton("Delete points", windowPos, b2Pos, bSize, 14)) {
                 printf("Deleting %d points\n", pts.amount);
