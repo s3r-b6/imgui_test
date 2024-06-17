@@ -47,21 +47,23 @@ void freeBumpAllocator(BumpAllocator *alloc) {
     alloc->used = 0;
 }
 
-u8 *alloc(BumpAllocator *alloc, size_t len) {
+u8 *alloc(BumpAllocator *alloc, u8 alignment, size_t len) {
     u8 *result = 0;
 
-    // ( l+7 ) & ~7 -> First 3 bits are empty, i.e., it is a multiple of 8.
-    size_t allignedSize = (len + 7) & ~7;
+    size_t adjustment = (alignment - ((uintptr_t)(alloc->memory + alloc->used) & (alignment - 1))) &
+                        (alignment - 1);
 
-    if (alloc->used + allignedSize > alloc->size) {
+    size_t alignedSize = len + adjustment;
+
+    if (alloc->used + alignedSize > alloc->size) {
         printf("Not enough space in BumpAllocator\n");
-        printf("Used %lu. New Size: %lu. Capacity: %lu.\n", alloc->used, allignedSize, alloc->size);
+        printf("Used %lu. New Size: %lu. Capacity: %lu.\n", alloc->used, alignedSize, alloc->size);
         crash();
         return result;
     }
 
-    result = alloc->memory + alloc->used;
-    alloc->used += allignedSize;
+    result = alloc->memory + alloc->used + adjustment;
+    alloc->used += alignedSize;
 
     return result;
 }

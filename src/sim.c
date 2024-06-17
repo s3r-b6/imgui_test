@@ -19,8 +19,8 @@ void updatePartitions() {
 
     int i = 0;
     for (; i < pts.amount; i += 8) {
-        __m256 posX = _mm256_loadu_ps(&pts.positionsX[i]);
-        __m256 posY = _mm256_loadu_ps(&pts.positionsY[i]);
+        __m256 posX = _mm256_load_ps(&pts.positionsX[i]);
+        __m256 posY = _mm256_load_ps(&pts.positionsY[i]);
 
         __m256i x = _mm256_cvtps_epi32(_mm256_div_ps(posX, _mm256_set1_ps(PARTITION_SIZE)));
         __m256i y = _mm256_cvtps_epi32(_mm256_div_ps(posY, _mm256_set1_ps(PARTITION_SIZE)));
@@ -61,19 +61,19 @@ void updatePositions() {
     int i = 0;
 
     for (; i <= pts.amount - 8; i += 8) {
-        __m256 positionsX = _mm256_loadu_ps(&pts.positionsX[i]);
-        __m256 positionsY = _mm256_loadu_ps(&pts.positionsY[i]);
+        __m256 positionsX = _mm256_load_ps(&pts.positionsX[i]);
+        __m256 positionsY = _mm256_load_ps(&pts.positionsY[i]);
 
-        __m256 speedsX = _mm256_loadu_ps(&pts.speedsX[i]);
-        __m256 speedsY = _mm256_loadu_ps(&pts.speedsY[i]);
+        __m256 speedsX = _mm256_load_ps(&pts.speedsX[i]);
+        __m256 speedsY = _mm256_load_ps(&pts.speedsY[i]);
 
         __m256 deltaT = _mm256_set1_ps(dt);
 
         positionsX = _mm256_add_ps(positionsX, _mm256_mul_ps(speedsX, deltaT));
         positionsY = _mm256_add_ps(positionsY, _mm256_mul_ps(speedsY, deltaT));
 
-        _mm256_storeu_ps(&pts.positionsX[i], positionsX);
-        _mm256_storeu_ps(&pts.positionsY[i], positionsY);
+        _mm256_store_ps(&pts.positionsX[i], positionsX);
+        _mm256_store_ps(&pts.positionsY[i], positionsY);
     }
 
     // remaining points

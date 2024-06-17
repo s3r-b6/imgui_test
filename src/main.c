@@ -14,12 +14,12 @@
 Color colors[10] = {};
 
 void allocPoints() {
-    pts.speedsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.speedsY = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.positionsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.positionsY = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.radiuses = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.colors = (u8 *)alloc(tempStorage, sizeof(u8) * MAX_PARTICLES);
+    pts.speedsX = (float *)alloc(tempStorage, 32, sizeof(float) * MAX_PARTICLES);
+    pts.speedsY = (float *)alloc(tempStorage, 32, sizeof(float) * MAX_PARTICLES);
+    pts.positionsX = (float *)alloc(tempStorage, 32, sizeof(float) * MAX_PARTICLES);
+    pts.positionsY = (float *)alloc(tempStorage, 32, sizeof(float) * MAX_PARTICLES);
+    pts.radiuses = (float *)alloc(tempStorage, 32, sizeof(float) * MAX_PARTICLES);
+    pts.colors = (u8 *)alloc(tempStorage, 32, sizeof(u8) * MAX_PARTICLES);
 }
 
 void clearPoints() {

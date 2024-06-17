@@ -31,11 +31,11 @@ typedef struct {
 } Partition;
 
 typedef struct {
-    u32 amount;
     float *speedsX;
     float *speedsY;
     float *positionsX;
     float *positionsY;
     float *radiuses;
+    u32 amount;
     u8 *colors;
 } Points;
