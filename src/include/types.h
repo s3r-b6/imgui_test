@@ -37,5 +37,5 @@ typedef struct {
     float *positionsX;
     float *positionsY;
     float *radiuses;
-    Color *colors;
+    u8 *colors;
 } Points;

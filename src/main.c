@@ -11,6 +11,10 @@
 
 #include "sim.c"
 
+Color colors[] = {
+    GREEN, PURPLE, BLUE, BLACK, ORANGE, BROWN, RED,
+};
+
 void allocPoints() {
     pts.amount = 0;
     pts.speedsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
@@ -18,35 +22,23 @@ void allocPoints() {
     pts.positionsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
     pts.positionsY = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
     pts.radiuses = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.colors = (Color *)alloc(tempStorage, sizeof(Color) * MAX_PARTICLES);
+    pts.colors = (u8 *)alloc(tempStorage, sizeof(u8) * MAX_PARTICLES);
 }
 
 void clearPoints() {
     freeBumpAllocator(tempStorage);
     memset(parts, 0, SPACE_PARTITIONS * SPACE_PARTITIONS * sizeof(Partition));
-    allocPoints();
 }
 
 void generatePoints() {
+    if (!pts.speedsX) { allocPoints(); }
     if (pts.amount >= MAX_PARTICLES) {
         printf("Too many particles\n");
         return;
     }
 
-    Color c;
-
     const int end = pts.amount + POINTS_ADDED;
     for (int i = pts.amount; i < end; ++i) {
-        switch (GetRandomValue(1, 7)) {
-        case 1: c = GREEN; break;
-        case 2: c = PURPLE; break;
-        case 3: c = BLUE; break;
-        case 4: c = BLACK; break;
-        case 5: c = ORANGE; break;
-        case 6: c = BROWN; break;
-        case 7: c = RED; break;
-        }
-
         u8 r = BASE_SIZE + GetRandomValue(4, 6);
 
         pts.positionsX[i] = (float)GetRandomValue(-w / 2 + r, w / 2 - r);
@@ -56,7 +48,7 @@ void generatePoints() {
         pts.speedsY[i] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
 
         pts.radiuses[i] = r;
-        pts.colors[i] = c;
+        pts.colors[i] = GetRandomValue(0, 7);
     }
 
     pts.amount += POINTS_ADDED;
@@ -100,7 +92,8 @@ int main(void) {
 
             for (int i = 0; i < pts.amount; i++) {
                 Vector2 pos = {pts.positionsX[i], pts.positionsY[i]};
-                DrawCircleV(pos, pts.radiuses[i], pts.colors[i]);
+
+                DrawCircleV(pos, pts.radiuses[i], colors[pts.colors[i]]);
             }
 
             snprintf(dtString, sizeof(dtString), "dt: %f", dt);
