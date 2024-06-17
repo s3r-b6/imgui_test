@@ -92,13 +92,30 @@ int main(void) {
     char dtString[14];
     while (!WindowShouldClose()) {
         Vector2 mousePos = GetMousePosition();
-        Vector2 windowPos = {mousePos.x - center.x, mousePos.y - center.y};
-
-        camera.zoom += GetMouseWheelMove() * 0.05f;
-
         dt = GetFrameTime();
 
         updateParticles();
+
+        { // Camera controls
+            camera.zoom += GetMouseWheelMove() * 0.05f;
+            static int startX;
+            static int startY;
+            if (IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) {
+                int newX = GetMouseX();
+                int newY = GetMouseY();
+                if (startX != 0 && startY != 0) {
+                    int diffX = newX - startX;
+                    int diffY = newY - startY;
+                    camera.offset.x += diffX;
+                    camera.offset.y += diffY;
+                    printf("Camera moved x: %d y: %d\n", newX - startX, newY - startY);
+                }
+                startX = newX;
+                startY = newY;
+            }
+
+            if (IsMouseButtonReleased(MOUSE_MIDDLE_BUTTON)) { startX = 0, startY = 0; }
+        }
 
         BeginDrawing();
         ClearBackground(RAYWHITE);

@@ -170,8 +170,7 @@ void updateParticles() {
     double totalColls = (endColls - endParts) * 1000;
     double totalPos = (end - endColls) * 1000;
 
-    printf("Updated %hu particles in: \n"
-           " TOTAL: %.2fms\n"
+    printf("Updated %hu particles in %.2fms:\n"
            " - Partitions: %.2fms\n"
            " - Collisions: %.2fms\n"
            " - Positions: %.2fms\n",
