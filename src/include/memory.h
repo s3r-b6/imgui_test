@@ -9,6 +9,9 @@
 #define KB(x) x * 1024
 #define MB(x) KB(x) * 1024
 
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 struct {
     u64 size;
     u64 used;

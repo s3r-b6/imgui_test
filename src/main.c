@@ -14,7 +14,6 @@
 Color colors[10] = {};
 
 void allocPoints() {
-    pts.amount = 0;
     pts.speedsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
     pts.speedsY = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
     pts.positionsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
@@ -30,8 +29,9 @@ void clearPoints() {
 }
 
 void generatePoints() {
-    if (pts.amount == 0) { allocPoints(); }
-    if (pts.amount >= MAX_PARTICLES) {
+    if (unlikely(pts.amount == 0)) {
+        allocPoints();
+    } else if (unlikely(pts.amount >= MAX_PARTICLES)) {
         printf("Too many particles\n");
         return;
     }
