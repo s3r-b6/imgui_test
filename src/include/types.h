@@ -12,22 +12,22 @@
 #define i16 int16_t
 #define i8 int8_t
 
-#define MAX_PARTICLES 20480 * 4
+#define MAX_PARTICLES 20480 * 8
 #define NUM_THREADS 8
 
-#define POINTS_ADDED 2048 * 4
+#define POINTS_ADDED 2048 * 8
 
 #define BASE_SIZE 0.2
 #define MAX_SPEED 100
 #define TARGET_FPS 60
 
-#define SPACE_PARTITIONS 128
+#define SPACE_PARTITIONS 256
 #define MAX_PARTITION_PARTICLES (MAX_PARTICLES / SPACE_PARTITIONS)
 
 // Partition based collision detection
 typedef struct {
-    u16 amount;
-    u16 points[MAX_PARTITION_PARTICLES];
+    u32 amount;
+    u32 points[MAX_PARTITION_PARTICLES];
 } Partition;
 
 typedef struct {

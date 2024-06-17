@@ -85,8 +85,9 @@ int main(void) {
     generatePoints();
 
     Image circleImg = LoadImage("assets/white-circle-no-outline.png");
+    ImageMipmaps(&circleImg);
     Texture2D circleTex = LoadTextureFromImage(circleImg);
-    SetTextureFilter(circleTex, TEXTURE_FILTER_BILINEAR);
+    // SetTextureFilter(circleTex, TEXTURE_FILTER_BILINEAR);
     UnloadImage(circleImg);
 
     char dtString[14];
@@ -131,24 +132,20 @@ int main(void) {
         ClearBackground(RAYWHITE);
         BeginMode2D(camera);
         { // WORLD_PASS
+            Vector2 origin = {0, 0};
+            Rectangle src = {0, 0, circleTex.width, circleTex.height};
+            for (int i = 0; i < pts.amount / 2; i += 2) {
+                // Basic loop unrolling
+                float posX1 = pts.positionsX[i], posY1 = pts.positionsY[i],
+                      radius1 = pts.radiuses[i];
+                float posX2 = pts.positionsX[i + 1], posY2 = pts.positionsY[i + 1],
+                      radius2 = pts.radiuses[i + 1];
 
-            for (int i = 0; i < pts.amount; i++) {
-                float posX = pts.positionsX[i];
-                float posY = pts.positionsY[i];
-                float radius = pts.radiuses[i];
+                Rectangle dest1 = {posX1 - radius1, posY1 - radius1, radius1 * 2, radius1 * 2};
+                Rectangle dest2 = {posX2 - radius2, posY2 - radius2, radius2 * 2, radius2 * 2};
 
-                Rectangle dest = {
-                    posX - radius,
-                    posY - radius,
-                    radius * 2,
-                    radius * 2,
-                };
-
-                Vector2 origin = {0, 0};
-
-                Rectangle src = {0, 0, circleTex.width, circleTex.height};
-
-                DrawTexturePro(circleTex, src, dest, origin, 0, colors[pts.colors[i]]);
+                DrawTexturePro(circleTex, src, dest1, origin, 0, colors[pts.colors[i]]);
+                DrawTexturePro(circleTex, src, dest2, origin, 0, colors[pts.colors[i + 1]]);
             }
         }
         EndMode2D();

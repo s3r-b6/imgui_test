@@ -83,18 +83,22 @@ void updatePositions() {
     }
 }
 
-bool outOfBounds(u32 p) {
-    float posX = pts.positionsX[p], posY = pts.positionsY[p];
-    float speedX = pts.speedsX[p], speedY = pts.speedsY[p];
+bool outOfBoundsX(u32 p) {
+    float posX = pts.positionsX[p];
+    float speedX = pts.speedsX[p];
     float radius = pts.radiuses[p];
 
     float minX = -worldSize.x / 2 + radius, maxX = worldSize.x / 2 - radius;
-    bool oobX = (posX + radius >= maxX && speedX > 0) || (posX - radius <= minX && speedX < 0);
-    if (oobX) return true;
+    return (posX + radius >= maxX && speedX > 0) || (posX - radius <= minX && speedX < 0);
+}
 
+bool outOfBoundsY(u32 p) {
+    float posY = pts.positionsY[p];
+    float speedY = pts.speedsY[p];
+    float radius = pts.radiuses[p];
     float minY = -worldSize.y / 2 + radius, maxY = worldSize.y / 2 - radius;
-    bool oobY = (posY + radius >= maxY && speedY > 0) || (posY - radius <= minY && speedY < 0);
-    return oobY;
+
+    return (posY + radius >= maxY && speedY > 0) || (posY - radius <= minY && speedY < 0);
 }
 
 bool checkCollisions(u32 p1, u32 p2) {
@@ -143,11 +147,21 @@ void solveCollisions() {
         Partition *part = &parts_ptr[x * SPACE_PARTITIONS + y];
         for (u32 k = 0; k < part->amount; k++) {
             u32 this = part->points[k];
-            if (outOfBounds(this)) {
+
+            bool oob = false;
+            if (outOfBoundsX(this)) {
+                oob = true;
                 pts.speedsX[this] = -pts.speedsX[this];
-                pts.speedsY[this] = -pts.speedsY[this];
-                continue;
+                pts.positionsX[this] += pts.speedsX[this] * 0.08;
             }
+
+            if (outOfBoundsY(this)) {
+                oob = true;
+                pts.speedsY[this] = -pts.speedsY[this];
+                pts.positionsY[this] += pts.speedsY[this] * 0.08;
+            }
+
+            if (oob) continue;
             for (u32 l = k + 1; l < part->amount; l++) {
                 u32 other = part->points[l];
                 if (checkCollisions(this, other)) { resolveCollision(this, other); }
@@ -170,7 +184,7 @@ void updateParticles() {
     double totalColls = (endColls - endParts) * 1000;
     double totalPos = (end - endColls) * 1000;
 
-    printf("Updated %hu particles in %.2fms:\n"
+    printf("Updated %u particles in %.2fms:\n"
            " - Partitions: %.2fms\n"
            " - Collisions: %.2fms\n"
            " - Positions: %.2fms\n",
