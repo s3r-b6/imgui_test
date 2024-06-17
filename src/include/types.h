@@ -32,8 +32,10 @@ typedef struct {
 
 typedef struct {
     u32 amount;
-    float *speeds;
-    float *positions;
+    float *speedsX;
+    float *speedsY;
+    float *positionsX;
+    float *positionsY;
     float *radiuses;
     Color *colors;
 } Points;

@@ -1,3 +1,5 @@
+#include <immintrin.h>
+
 #include <math.h>
 #include <stdlib.h>
 
@@ -7,8 +9,8 @@
 #include "./include/types.h"
 
 Vector2 getPartitionIndex(u32 idx) {
-    float posX = pts.positions[(idx * 2)];
-    float posY = pts.positions[(idx * 2) + 1];
+    float posX = pts.positionsX[idx];
+    float posY = pts.positionsY[idx];
     float radius = pts.radiuses[idx];
 
     int x = (int)((posX + radius) / PARTITION_SIZE);
@@ -32,19 +34,37 @@ void updatePartitions() {
 }
 
 void updatePositions() {
-    for (int i = 0; i < pts.amount; i++) {
-        float val = pts.positions[(i * 2)];
-        pts.positions[(i * 2)] += pts.speeds[(i * 2)] * dt;
-        pts.positions[(i * 2) + 1] += pts.speeds[(i * 2) + 1] * dt;
+    if (pts.amount == 0) { return; }
+
+    int i = 0;
+
+    for (; i <= pts.amount - 8; i += 8) {
+        __m256 positionsX = _mm256_loadu_ps(&pts.positionsX[i]);
+        __m256 positionsY = _mm256_loadu_ps(&pts.positionsY[i]);
+
+        __m256 speedsX = _mm256_loadu_ps(&pts.speedsX[i]);
+        __m256 speedsY = _mm256_loadu_ps(&pts.speedsY[i]);
+
+        __m256 deltaT = _mm256_set1_ps(dt);
+
+        positionsX = _mm256_add_ps(positionsX, _mm256_mul_ps(speedsX, deltaT));
+        positionsY = _mm256_add_ps(positionsY, _mm256_mul_ps(speedsY, deltaT));
+
+        _mm256_storeu_ps(&pts.positionsX[i], positionsX);
+        _mm256_storeu_ps(&pts.positionsY[i], positionsY);
+    }
+
+    // remaining points
+    for (; i < pts.amount; i++) {
+        pts.positionsX[i] += pts.speedsX[i] * dt;
+        pts.positionsY[i] += pts.speedsY[i] * dt;
     }
 }
 
 bool outOfBounds(u32 p) {
+    float posX = pts.positionsX[p], posY = pts.positionsY[p];
+    float speedX = pts.speedsX[p], speedY = pts.speedsY[p];
     float r = pts.radiuses[p];
-    float posX = pts.positions[p * 2];
-    float posY = pts.positions[p * 2 + 1];
-    float speedX = pts.speeds[p * 2];
-    float speedY = pts.speeds[p * 2 + 1];
 
     bool oobX = (posX + r >= w / 2 && speedX > 0) || (posX - r <= -w / 2 && speedX < 0);
     bool oobY = (posY + r >= h / 2 && speedY > 0) || (posY - r <= -h / 2 && speedY < 0);
@@ -53,8 +73,8 @@ bool outOfBounds(u32 p) {
 }
 
 bool checkCollisions(u32 p1, u32 p2) {
-    float dx = pts.positions[(p1 * 2)] - pts.positions[(p2 * 2)];
-    float dy = pts.positions[(p1 * 2) + 1] - pts.positions[(p2 * 2) + 1];
+    float dx = pts.positionsX[p1] - pts.positionsX[p2];
+    float dy = pts.positionsY[p1] - pts.positionsY[p2];
     float distanceSquared = dx * dx + dy * dy;
     float sum = pts.radiuses[p1] + pts.radiuses[p2];
     return distanceSquared <= sum * sum;
@@ -63,8 +83,8 @@ bool checkCollisions(u32 p1, u32 p2) {
 void resolveCollision(int p1, int p2) {
     if (!checkCollisions(p1, p2)) { return; }
 
-    float dx = pts.positions[p1 * 2] - pts.positions[p2 * 2];
-    float dy = pts.positions[p1 * 2 + 1] - pts.positions[p2 * 2 + 1];
+    float dx = pts.positionsX[p1] - pts.positionsX[p2];
+    float dy = pts.positionsY[p1] - pts.positionsY[p2];
     float distanceSquared = dx * dx + dy * dy;
     float sumRadii = pts.radiuses[p1] + pts.radiuses[p2];
 
@@ -75,17 +95,17 @@ void resolveCollision(int p1, int p2) {
     float nx = dx / sqrtDist;
     float ny = dy / sqrtDist;
 
-    float dvx = pts.speeds[p1 * 2] - pts.speeds[p2 * 2];
-    float dvy = pts.speeds[p1 * 2 + 1] - pts.speeds[p2 * 2 + 1];
+    float dvx = pts.speedsX[p1] - pts.speedsX[p2];
+    float dvy = pts.speedsY[p1] - pts.speedsY[p2];
 
     float dotProduct = dvx * nx + dvy * ny;
 
     if (dotProduct > 0) return;
 
-    pts.speeds[p1 * 2] += -dotProduct * nx;
-    pts.speeds[p1 * 2 + 1] += -dotProduct * ny;
-    pts.speeds[p2 * 2] -= -dotProduct * nx;
-    pts.speeds[p2 * 2 + 1] -= -dotProduct * ny;
+    pts.speedsX[p1] += -dotProduct * nx;
+    pts.speedsY[p1] += -dotProduct * ny;
+    pts.speedsX[p2] -= -dotProduct * nx;
+    pts.speedsY[p2] -= -dotProduct * ny;
 }
 
 void solveCollisions() {
@@ -100,8 +120,8 @@ void solveCollisions() {
             for (u32 k = 0; k < part.amount; k++) {
                 u32 this = part.points[k];
                 if (outOfBounds(this)) {
-                    pts.speeds[this * 2] = -pts.speeds[this * 2];
-                    pts.speeds[this * 2 + 1] = -pts.speeds[this * 2 + 1];
+                    pts.speedsX[this] = -pts.speedsX[this];
+                    pts.speedsY[this] = -pts.speedsY[this];
                     continue;
                 }
                 for (u32 l = k + 1; l < part.amount; l++) {

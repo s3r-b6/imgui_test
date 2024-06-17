@@ -11,13 +11,20 @@
 
 #include "sim.c"
 
+void allocPoints() {
+    pts.amount = 0;
+    pts.speedsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
+    pts.speedsY = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
+    pts.positionsX = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
+    pts.positionsY = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
+    pts.radiuses = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
+    pts.colors = (Color *)alloc(tempStorage, sizeof(Color) * MAX_PARTICLES);
+}
+
 void clearPoints() {
     freeBumpAllocator(tempStorage);
-    pts.amount = 0;
-    memset(pts.positions, 0, pts.amount * 2);
-    memset(pts.speeds, 0, pts.amount * 2);
-    memset(pts.radiuses, 0, pts.amount);
-    memset(parts, 0, SPACE_PARTITIONS * SPACE_PARTITIONS);
+    memset(parts, 0, SPACE_PARTITIONS * SPACE_PARTITIONS * sizeof(Partition));
+    allocPoints();
 }
 
 void generatePoints() {
@@ -42,11 +49,11 @@ void generatePoints() {
 
         u8 r = BASE_SIZE + GetRandomValue(4, 6);
 
-        pts.positions[i * 2] = (float)GetRandomValue(-w / 2 + r, w / 2 - r);
-        pts.positions[i * 2 + 1] = (float)GetRandomValue(-h / 2 + r, h / 2 - r);
+        pts.positionsX[i] = (float)GetRandomValue(-w / 2 + r, w / 2 - r);
+        pts.positionsY[i] = (float)GetRandomValue(-h / 2 + r, h / 2 - r);
 
-        pts.speeds[i * 2] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
-        pts.speeds[i * 2 + 1] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
+        pts.speedsX[i] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
+        pts.speedsY[i] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
 
         pts.radiuses[i] = r;
         pts.colors[i] = c;
@@ -61,10 +68,8 @@ int main(void) {
         printf("Failed to init bump allocator\n");
         crash();
     }
-    pts.speeds = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES * 2);
-    pts.positions = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES * 2);
-    pts.radiuses = (float *)alloc(tempStorage, sizeof(float) * MAX_PARTICLES);
-    pts.colors = (Color *)alloc(tempStorage, sizeof(Color) * MAX_PARTICLES);
+
+    allocPoints();
 
     InitWindow(1280, 720, "RayLib playground");
     SetTargetFPS(TARGET_FPS);
@@ -94,10 +99,7 @@ int main(void) {
             ClearBackground(RAYWHITE);
 
             for (int i = 0; i < pts.amount; i++) {
-                Vector2 pos = {
-                    pts.positions[i * 2],
-                    pts.positions[i * 2 + 1],
-                };
+                Vector2 pos = {pts.positionsX[i], pts.positionsY[i]};
                 DrawCircleV(pos, pts.radiuses[i], pts.colors[i]);
             }
 

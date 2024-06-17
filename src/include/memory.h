@@ -40,8 +40,8 @@ BumpAllocator *NewBumpAlloc(u64 len) {
 }
 
 void freeBumpAllocator(BumpAllocator *alloc) {
+    memset(alloc->memory, 0, alloc->used + 1);
     alloc->used = 0;
-    memset(alloc->memory, 0, alloc->size);
 }
 
 u8 *alloc(BumpAllocator *alloc, size_t len) {
