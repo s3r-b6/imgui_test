@@ -9,27 +9,48 @@
 #include "./include/sim.h"
 #include "./include/types.h"
 
-Vector2 getPartitionIndex(u32 idx) {
-    float posX = pts.positionsX[idx];
-    float posY = pts.positionsY[idx];
-    float radius = pts.radiuses[idx];
-
-    int x = (int)((posX + radius) / PARTITION_SIZE);
-    int y = (int)((posY + radius) / PARTITION_SIZE);
-
-    Vector2 v = {abs(x), abs(y)};
-    return v;
-}
-
 void updatePartitions() {
-    for (int i = 0; i < SPACE_PARTITIONS; i++) {
-        for (int j = 0; j < SPACE_PARTITIONS; j++) { parts[i][j].amount = 0; }
+    Partition *parts_ptr = &parts[0][0];
+    for (int i = 0; i < SPACE_PARTITIONS * SPACE_PARTITIONS; i++) {
+        int x = i / SPACE_PARTITIONS;
+        int y = i % SPACE_PARTITIONS;
+        parts_ptr[x * SPACE_PARTITIONS + y].amount = 0;
     }
 
-    for (int i = 0; i < pts.amount; i++) {
-        Vector2 idx = getPartitionIndex(i);
-        int partX = (int)idx.x, partY = (int)idx.y;
-        Partition *part = &parts[partX][partY];
+    int i = 0;
+    for (; i < pts.amount; i += 8) {
+        __m256 posX = _mm256_loadu_ps(&pts.positionsX[i]);
+        __m256 posY = _mm256_loadu_ps(&pts.positionsY[i]);
+
+        __m256i x = _mm256_cvtps_epi32(_mm256_div_ps(posX, _mm256_set1_ps(PARTITION_SIZE)));
+        __m256i y = _mm256_cvtps_epi32(_mm256_div_ps(posY, _mm256_set1_ps(PARTITION_SIZE)));
+
+        x = _mm256_abs_epi32(x);
+        y = _mm256_abs_epi32(y);
+
+        _Alignas(32) int x_values[8];
+        _Alignas(32) int y_values[8];
+        _mm256_store_si256((__m256i *)x_values, x);
+        _mm256_store_si256((__m256i *)y_values, y);
+
+        for (int j = 0; j < 8; j++) {
+            int x_value = x_values[j];
+            int y_value = y_values[j];
+
+            int index = x_value * SPACE_PARTITIONS + y_value;
+            Partition *part = &parts_ptr[index];
+            part->points[part->amount++] = i + j;
+        }
+    }
+
+    for (; i < pts.amount; i++) {
+        int posX = (int)pts.positionsX[i];
+        int posY = (int)pts.positionsY[i];
+
+        int x = abs(posX / PARTITION_SIZE);
+        int y = abs(posY / PARTITION_SIZE);
+
+        Partition *part = &parts[x][y];
         part->points[part->amount++] = i;
     }
 }
@@ -68,9 +89,10 @@ bool outOfBounds(u32 p) {
     float r = pts.radiuses[p];
 
     bool oobX = (posX + r >= w / 2 && speedX > 0) || (posX - r <= -w / 2 && speedX < 0);
-    bool oobY = (posY + r >= h / 2 && speedY > 0) || (posY - r <= -h / 2 && speedY < 0);
+    if (oobX) return true;
 
-    return oobX || oobY;
+    bool oobY = (posY + r >= h / 2 && speedY > 0) || (posY - r <= -h / 2 && speedY < 0);
+    return oobY;
 }
 
 bool checkCollisions(u32 p1, u32 p2) {
@@ -115,20 +137,20 @@ void solveCollisions() {
     //
     // we are checking every single point in a partition against all other
     // points in that partition.
-    for (int i = 0; i < SPACE_PARTITIONS; i++) {
-        for (int j = 0; j < SPACE_PARTITIONS; j++) {
-            Partition part = parts[i][j];
-            for (u32 k = 0; k < part.amount; k++) {
-                u32 this = part.points[k];
-                if (outOfBounds(this)) {
-                    pts.speedsX[this] = -pts.speedsX[this];
-                    pts.speedsY[this] = -pts.speedsY[this];
-                    continue;
-                }
-                for (u32 l = k + 1; l < part.amount; l++) {
-                    u32 other = part.points[l];
-                    resolveCollision(this, other);
-                }
+    Partition *parts_ptr = &parts[0][0];
+    for (int i = 0; i < SPACE_PARTITIONS * SPACE_PARTITIONS; i++) {
+        int x = i / SPACE_PARTITIONS, y = i % SPACE_PARTITIONS;
+        Partition *part = &parts_ptr[x * SPACE_PARTITIONS + y];
+        for (u32 k = 0; k < part->amount; k++) {
+            u32 this = part->points[k];
+            if (outOfBounds(this)) {
+                pts.speedsX[this] = -pts.speedsX[this];
+                pts.speedsY[this] = -pts.speedsY[this];
+                continue;
+            }
+            for (u32 l = k + 1; l < part->amount; l++) {
+                u32 other = part->points[l];
+                resolveCollision(this, other);
             }
         }
     }
