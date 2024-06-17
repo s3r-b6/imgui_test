@@ -40,8 +40,8 @@ void generatePoints() {
     for (int i = pts.amount; i < end; ++i) {
         u8 r = BASE_SIZE + GetRandomValue(3, 4);
 
-        pts.positionsX[i] = (float)GetRandomValue(-w / 2 + r, w / 2 - r);
-        pts.positionsY[i] = (float)GetRandomValue(-h / 2 + r, h / 2 - r);
+        pts.positionsX[i] = (float)GetRandomValue(-worldSize.x / 2 + r, worldSize.x / 2 - r);
+        pts.positionsY[i] = (float)GetRandomValue(-worldSize.y / 2 + r, worldSize.y / 2 - r);
 
         pts.speedsX[i] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
         pts.speedsY[i] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
@@ -79,8 +79,8 @@ int main(void) {
     PARTITION_SIZE = worldSize.x / SPACE_PARTITIONS;
 
     Vector2 bSize = {100, 40};
-    Vector2 center = {w / 2, h / 2};
-    Camera2D camera = {.offset = center, .zoom = 1};
+    Vector2 center = {worldSize.x / 2, worldSize.y / 2};
+    Camera2D camera = {.offset = w / 2, h / 2, .zoom = 1};
 
     generatePoints();
 
@@ -97,7 +97,15 @@ int main(void) {
         updateParticles();
 
         { // Camera controls
-            camera.zoom += GetMouseWheelMove() * 0.05f;
+            // zoom
+            camera.zoom += GetMouseWheelMove() * 0.10f;
+            if (camera.zoom < 0.5f) {
+                camera.zoom = 0.5f;
+            } else if (camera.zoom > 1.5f) {
+                camera.zoom = 1.5f;
+            }
+
+            // drag to move
             static int startX;
             static int startY;
             if (IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) {
@@ -106,8 +114,10 @@ int main(void) {
                 if (startX != 0 && startY != 0) {
                     int diffX = newX - startX;
                     int diffY = newY - startY;
+
                     camera.offset.x += diffX;
                     camera.offset.y += diffY;
+
                     printf("Camera moved x: %d y: %d\n", newX - startX, newY - startY);
                 }
                 startX = newX;
