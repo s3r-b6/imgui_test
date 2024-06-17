@@ -11,9 +11,7 @@
 
 #include "sim.c"
 
-Color colors[] = {
-    GREEN, PURPLE, BLUE, BLACK, ORANGE, BROWN, RED,
-};
+Color colors[10] = {};
 
 void allocPoints() {
     pts.amount = 0;
@@ -27,11 +25,12 @@ void allocPoints() {
 
 void clearPoints() {
     freeBumpAllocator(tempStorage);
+    pts.amount = 0;
     memset(parts, 0, SPACE_PARTITIONS * SPACE_PARTITIONS * sizeof(Partition));
 }
 
 void generatePoints() {
-    if (!pts.speedsX) { allocPoints(); }
+    if (pts.amount == 0) { allocPoints(); }
     if (pts.amount >= MAX_PARTICLES) {
         printf("Too many particles\n");
         return;
@@ -48,20 +47,30 @@ void generatePoints() {
         pts.speedsY[i] = (float)GetRandomValue(-MAX_SPEED, MAX_SPEED);
 
         pts.radiuses[i] = r;
-        pts.colors[i] = GetRandomValue(0, 7);
+        pts.colors[i] = GetRandomValue(0, 10);
     }
 
     pts.amount += POINTS_ADDED;
 }
 
 int main(void) {
+    // https://coolors.co/palette/001219-005f73-0a9396-94d2bd-e9d8a6-ee9b00-ca6702-bb3e03-ae2012-9b2226
+    colors[0] = GetColor(0x001219ff);
+    colors[1] = GetColor(0x005f73ff);
+    colors[2] = GetColor(0x0a9396ff);
+    colors[3] = GetColor(0x94d2bdff);
+    colors[4] = GetColor(0xe9d8a6ff);
+    colors[5] = GetColor(0xee9b00ff);
+    colors[6] = GetColor(0xca6702ff);
+    colors[7] = GetColor(0xbb3e03ff);
+    colors[8] = GetColor(0xae2012ff);
+    colors[9] = GetColor(0x9b2226ff);
+
     tempStorage = NewBumpAlloc(MB(50));
     if (!tempStorage) {
         printf("Failed to init bump allocator\n");
         crash();
     }
-
-    allocPoints();
 
     InitWindow(1280, 720, "RayLib playground");
     SetTargetFPS(TARGET_FPS);
