@@ -16,7 +16,7 @@ struct {
 } typedef BumpAllocator;
 
 void crash() {
-    int *x = nullptr;
+    int *x = 0;
     printf("FATAL ERROR\n");
     *x = 2;
 }
@@ -45,13 +45,14 @@ void freeBumpAllocator(BumpAllocator *alloc) {
 }
 
 u8 *alloc(BumpAllocator *alloc, size_t len) {
-    u8 *result = nullptr;
+    u8 *result = 0;
 
     // ( l+7 ) & ~7 -> First 3 bits are empty, i.e., it is a multiple of 8.
     size_t allignedSize = (len + 7) & ~7;
 
     if (alloc->used + allignedSize > alloc->size) {
         printf("Not enough space in BumpAllocator\n");
+        printf("Used %lu. New Size: %lu. Capacity: %lu.\n", alloc->used, allignedSize, alloc->size);
         crash();
         return result;
     }
